@@ -3,7 +3,7 @@ import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import Label from "../../components/form/Label";
 import Input from "../../components/form/input/InputField";
 import ComponentCard from "../../components/common/ComponentCard";
-import Select from "../../components/form/Select";
+import SearchableSelect from "../../components/form/SearchableSelect";
 import DropzoneComponent from "../../components/form/form-elements/DropZone";
 import Button from "../../components/ui/button/Button";
 import { useCategories } from "../../context/CategoryContext";
@@ -224,11 +224,13 @@ export default function AddCategory() {
                             
                             <div>
                                 <Label htmlFor="parent">Parent Category</Label>
-                                <Select
+                                <SearchableSelect
                                     options={parentOptions}
                                     placeholder="Select Parent Category"
                                     onChange={handleSelectChange}
                                     value={formData.parent}
+                                    searchPlaceholder="Search categories..."
+                                    noResultsText="No categories found"
                                 />
                                 {isParentInactive && (
                                     <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
