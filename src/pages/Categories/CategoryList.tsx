@@ -77,14 +77,56 @@ export default function CategoryList() {
         });
     };
 
+    // 🆕 Recursively check if a node or any of its children match the search term
+    const nodeMatchesSearch = (node: CategoryNodeType, search: string): boolean => {
+        // Check if current node matches
+        if (node.label.toLowerCase().includes(search.toLowerCase())) {
+            return true;
+        }
+        
+        // Check if any child matches (recursively)
+        if (node.children && node.children.length > 0) {
+            return node.children.some(child => nodeMatchesSearch(child, search));
+        }
+        
+        return false;
+    };
+
+    // 🆕 Filter and flatten tree showing only matching categories and their parents
+    const filterAndFlattenTree = (
+        nodes: CategoryNodeType[], 
+        search: string, 
+        level: number = 0
+    ): (CategoryNodeType & { level: number; hasChildren: boolean })[] => {
+        if (!search) {
+            return flattenTree(nodes, level);
+        }
+        
+        const result: (CategoryNodeType & { level: number; hasChildren: boolean })[] = [];
+        
+        nodes.forEach(node => {
+            // Check if this node or any of its descendants match
+            if (nodeMatchesSearch(node, search)) {
+                const hasChildren = node.children && node.children.length > 0;
+                result.push({ ...node, level, hasChildren: hasChildren || false });
+                
+                // If this node has children, recurse into them (don't require expandedCategories check when searching)
+                if (hasChildren) {
+                    result.push(...filterAndFlattenTree(node.children!, search, level + 1));
+                }
+            }
+        });
+        
+        return result;
+    };
+
     // 🆕 Filter categories based on search term
     const filteredFlatCategories = () => {
-        const flatCategories = flattenTree(nodes);
-        if (!searchTerm) return flatCategories;
+        if (!searchTerm) {
+            return flattenTree(nodes);
+        }
         
-        return flatCategories.filter(category => 
-            category.label.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        return filterAndFlattenTree(nodes, searchTerm);
     };
 
     // ✅ Improved useEffect to properly handle tree updates
