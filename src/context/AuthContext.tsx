@@ -45,6 +45,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Check if token is expired before proceeding
         if (authUtils.isTokenExpired()) {
+          console.log('Token expired during auth check, logging out...');
           authUtils.safeClearAuth('Token expired during auth check');
           if (isMounted) {
             setUser(null);
@@ -53,8 +54,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
 
-        // Validate token format
+        // Only validate token format if it's clearly malformed
         if (!authUtils.isValidTokenFormat()) {
+          console.log('Invalid token format during auth check, logging out...');
           authUtils.safeClearAuth('Invalid token format during auth check');
           if (isMounted) {
             setUser(null);
@@ -68,7 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(storedUser);
         }
         
-        // Validate with server (this is now blocking to ensure proper validation)
+        // Validate with server - Non-blocking approach to prevent false logouts
         try {
           const response = await authApi.getCurrentUser();
           if (response.success && response.data?.user) {
@@ -79,17 +81,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             // Update localStorage with fresh user data
             localStorage.setItem('user', JSON.stringify(response.data.user));
           } else {
-            authUtils.safeClearAuth('Server validation failed during auth check');
+            // Only clear auth if it's a definitive authentication error
+            console.warn('Server validation failed, but keeping local auth state');
             if (isMounted) {
-              setUser(null);
+              setUser(storedUser); // Keep the stored user
               setIsLoading(false);
             }
           }
         } catch (error) {
-          // Clear auth data if server validation fails
-          authUtils.safeClearAuth('Server validation error during auth check');
+          // Don't clear auth data on network/server errors - keep local state
+          console.warn('Server validation error, but keeping local auth state:', error);
           if (isMounted) {
-            setUser(null);
+            setUser(storedUser); // Keep the stored user
             setIsLoading(false);
           }
         }
@@ -111,20 +114,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
   }, []);
 
-  // Periodic token validation check
+  // Idle timeout - logout after 15 minutes of inactivity
+  useEffect(() => {
+    if (!user || isLoading) return;
+
+    const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
+    const WARNING_TIME = 1 * 60 * 1000; // 1 minute warning before logout
+
+    let timeoutHandle: ReturnType<typeof setTimeout>;
+    let warningTimeoutHandle: ReturnType<typeof setTimeout>;
+    let lastActivityTime = Date.now();
+
+    const resetIdleTimer = () => {
+      lastActivityTime = Date.now();
+      
+      // Clear existing timers
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      if (warningTimeoutHandle) clearTimeout(warningTimeoutHandle);
+
+      // Set warning timer (1 minute before logout)
+      warningTimeoutHandle = setTimeout(() => {
+        if (Date.now() - lastActivityTime >= IDLE_TIMEOUT - WARNING_TIME) {
+          alert('Your session will expire in 1 minute due to inactivity. Please move your mouse or click anywhere to continue.');
+        }
+      }, IDLE_TIMEOUT - WARNING_TIME);
+
+      // Set logout timer
+      timeoutHandle = setTimeout(() => {
+        const idleTime = Date.now() - lastActivityTime;
+        if (idleTime >= IDLE_TIMEOUT) {
+          console.log('User inactive for 15 minutes, logging out...');
+          authUtils.safeClearAuth('User inactive for 15 minutes');
+          setUser(null);
+          alert('You have been logged out due to inactivity.');
+        }
+      }, IDLE_TIMEOUT);
+    };
+
+    // Activity tracking events
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    
+    const handleActivity = () => {
+      resetIdleTimer();
+    };
+
+    // Initialize timer
+    resetIdleTimer();
+
+    // Add event listeners
+    activityEvents.forEach(event => {
+      document.addEventListener(event, handleActivity);
+    });
+
+    // Cleanup
+    return () => {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      if (warningTimeoutHandle) clearTimeout(warningTimeoutHandle);
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+    };
+  }, [user, isLoading]);
+
+  // Periodic token validation check - Less aggressive approach
   useEffect(() => {
     if (!user || isLoading) return;
 
     const interval = setInterval(() => {
-      // Check if token is still valid
+      // Only check token expiration, not format (format doesn't change)
       if (authUtils.isTokenExpired()) {
+        console.log('Token expired during session, logging out...');
         authUtils.safeClearAuth('Token expired during session');
         setUser(null);
-      } else if (!authUtils.isValidTokenFormat()) {
-        authUtils.safeClearAuth('Token format became invalid during session');
-        setUser(null);
       }
-    }, 60000); // Check every minute
+      // Remove format check as it's unnecessary and can cause false logouts
+    }, 300000); // Check every 5 minutes instead of 1 minute
 
     return () => clearInterval(interval);
   }, [user, isLoading]);

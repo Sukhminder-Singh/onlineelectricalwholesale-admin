@@ -5,11 +5,13 @@ import { useSidebar } from "../context/SidebarContext";
 
 
 import UserDropdown from "../components/header/UserDropdown";
+import { useAuthDebug } from "../components/debug/AuthDebugPanel";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const { openDebug, DebugPanel } = useAuthDebug();
 
   const handleToggle = () => {
     if (window.innerWidth >= 1024) {
@@ -161,11 +163,29 @@ const AppHeader: React.FC = () => {
             {/* <ThemeToggleButton /> */}
             {/* <!-- Dark Mode Toggler --> */}
             {/* <!-- Notification Menu Area --> */}
+            
+            {/* Debug Button - Only show in development */}
+            {import.meta.env.DEV && (
+              <button
+                onClick={openDebug}
+                className="flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                title="Authentication Debug Panel"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
           </div>
           {/* <!-- User Area --> */}
           <UserDropdown />
         </div>
       </div>
+      
+      {/* Debug Panel */}
+      <DebugPanel />
     </header>
   );
 };

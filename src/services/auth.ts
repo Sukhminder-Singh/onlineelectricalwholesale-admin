@@ -353,10 +353,10 @@ export const authUtils = {
         return true;
       }
 
-      // Check if token is expired (with 1 minute buffer)
+      // Check if token is expired (with 5 minute buffer for better UX)
       const currentTime = Math.floor(Date.now() / 1000);
       const expirationTime = payload.exp;
-      const bufferTime = 1 * 60; // 1 minute in seconds
+      const bufferTime = 5 * 60; // 5 minutes in seconds for better user experience
       
       const isExpired = currentTime >= (expirationTime - bufferTime);
       

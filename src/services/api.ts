@@ -44,6 +44,20 @@ const apiRequest = async <T>(
                 errorData = { message: `HTTP error! status: ${response.status}` };
             }
             
+            // Handle authentication errors specifically
+            if (response.status === 401) {
+                // Only clear auth if it's a definitive 401 (Unauthorized)
+                const token = localStorage.getItem('authToken');
+                if (token && !errorData.message?.includes('Invalid token format')) {
+                    // Don't clear auth for network issues or temporary server problems
+                    console.warn('Received 401 but keeping auth state - might be temporary server issue');
+                } else {
+                    // Clear auth only for definitive authentication failures
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('user');
+                }
+            }
+            
             // Handle specific error cases
             if (response.status === 400 && errorData.message?.includes('Invalid resource ID format')) {
             }

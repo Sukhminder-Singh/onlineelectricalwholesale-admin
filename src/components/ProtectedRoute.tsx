@@ -15,7 +15,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // (Removed unused memoized authState to avoid lint warnings)
 
-  // Additional validation check for stored data
+  // Additional validation check for stored data - Less aggressive
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
       // Double-check that we have valid stored data
@@ -23,21 +23,19 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       const storedUser = authUtils.getCurrentUser();
       
       if (!storedToken || !storedUser) {
+        console.log('Stored data mismatch in ProtectedRoute, logging out...');
         authUtils.safeClearAuth('Stored data mismatch in ProtectedRoute');
         return;
       }
       
-      // Check if token is expired
+      // Only check if token is expired (most important check)
       if (authUtils.isTokenExpired()) {
+        console.log('Token expired in ProtectedRoute, logging out...');
         authUtils.safeClearAuth('Token expired in ProtectedRoute');
         return;
       }
       
-      // Check token format
-      if (!authUtils.isValidTokenFormat()) {
-        authUtils.safeClearAuth('Invalid token format in ProtectedRoute');
-        return;
-      }
+      // Remove format check as it's unnecessary and can cause false logouts
     }
   }, [isLoading, isAuthenticated, user]);
 
@@ -55,8 +53,8 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Check if we have valid authentication data
-  const hasValidAuth = isAuthenticated && user && authUtils.getToken() && !authUtils.isTokenExpired() && authUtils.isValidTokenFormat();
+  // Check if we have valid authentication data - Simplified validation
+  const hasValidAuth = isAuthenticated && user && authUtils.getToken() && !authUtils.isTokenExpired();
 
   // Only redirect if definitely not authenticated to prevent reload loops
   if (!isLoading && !hasValidAuth) {
