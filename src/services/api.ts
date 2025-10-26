@@ -637,27 +637,6 @@ export const productApi = {
     },
 };
 
-// Attribute Types
-export interface Attribute {
-    _id: string;
-    name: string;
-    type: 'text' | 'number' | 'select';
-    options?: string[];
-    isRequired?: boolean;
-    isActive?: boolean;
-    description?: string;
-    order?: number;
-    validation?: {
-        minLength?: number;
-        maxLength?: number;
-        minValue?: number;
-        maxValue?: number;
-        pattern?: string;
-    };
-    createdAt?: string;
-    updatedAt?: string;
-}
-
 // Customer Types
 export interface Customer {
     id: string;
@@ -701,6 +680,27 @@ export interface CustomerStats {
     totalRevenue: number;
     newCustomersThisMonth: number;
     averageOrderValue: number;
+}
+
+// Attribute Types
+export interface Attribute {
+    _id: string;
+    name: string;
+    type: 'text' | 'number' | 'select';
+    options?: string[];
+    isRequired?: boolean;
+    isActive?: boolean;
+    description?: string;
+    order?: number;
+    validation?: {
+        minLength?: number;
+        maxLength?: number;
+        minValue?: number;
+        maxValue?: number;
+        pattern?: string;
+    };
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface AttributeOrderUpdate {

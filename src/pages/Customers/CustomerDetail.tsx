@@ -13,13 +13,16 @@ import {
   Clock,
   Package,
   CreditCard,
-  Truck
+  Truck,
+  RefreshCw
 } from 'lucide-react';
 import PageBreadcrumb from '../../components/common/PageBreadCrumb';
 import PageMeta from '../../components/common/PageMeta';
 import ComponentCard from '../../components/common/ComponentCard';
 import Button from '../../components/ui/button/Button';
 import { useCustomer, type Customer } from '../../context/CustomerContext';
+import { orderApi } from '../../services/api';
+import { showErrorToast } from '../../components/ui/toast';
 
 interface Order {
   id: string;
@@ -30,59 +33,63 @@ interface Order {
   items: number;
 }
 
-// Mock orders data for demonstration
-const mockOrders: Order[] = [
-  {
-    id: '1',
-    orderNumber: 'ORD-2024-001',
-    date: '2024-01-15',
-    status: 'delivered',
-    total: 450.00,
-    items: 3
-  },
-  {
-    id: '2',
-    orderNumber: 'ORD-2024-002',
-    date: '2024-01-10',
-    status: 'shipped',
-    total: 280.50,
-    items: 2
-  },
-  {
-    id: '3',
-    orderNumber: 'ORD-2023-098',
-    date: '2023-12-28',
-    status: 'delivered',
-    total: 650.75,
-    items: 5
-  },
-  {
-    id: '4',
-    orderNumber: 'ORD-2023-097',
-    date: '2023-12-15',
-    status: 'delivered',
-    total: 320.25,
-    items: 2
-  }
-];
-
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getCustomerById, isLoading } = useCustomer();
+  const { getCustomerById, isLoading: customerLoading } = useCustomer();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
       const foundCustomer = getCustomerById(id);
       setCustomer(foundCustomer || null);
-      // For demo purposes, set mock orders for any customer
+      
+      // Load orders for this customer
       if (foundCustomer) {
-        setOrders(mockOrders);
+        loadCustomerOrders(id);
       }
     }
   }, [id, getCustomerById]);
+
+  const loadCustomerOrders = async (customerId: string) => {
+    setIsLoadingOrders(true);
+    setOrdersError(null);
+    
+    try {
+      // Try to fetch orders from API
+      try {
+        const apiOrders = await orderApi.getCustomerOrders(customerId);
+        
+        // Transform API orders to the local format
+        const transformedOrders: Order[] = apiOrders.map((order: any) => ({
+          id: order.id || order._id,
+          orderNumber: order.orderNumber || `ORD-${order.id}`,
+          date: order.createdAt || order.orderDate || new Date().toISOString(),
+          status: order.status.toLowerCase() as any,
+          total: order.totalAmount || order.total || 0,
+          items: order.items ? order.items.length : 0,
+        }));
+        
+        setOrders(transformedOrders);
+      } catch (apiError) {
+        console.warn('Failed to fetch orders from API:', apiError);
+        setOrdersError('Failed to load orders');
+      }
+    } catch (err) {
+      setOrdersError(err instanceof Error ? err.message : 'Failed to load orders');
+    } finally {
+      setIsLoadingOrders(false);
+    }
+  };
+
+  const handleRefreshOrders = () => {
+    if (id) {
+      loadCustomerOrders(id);
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -110,7 +117,9 @@ export default function CustomerDetail() {
     }
   };
 
-  if (isLoading) {
+  const isLoading = customerLoading || isLoadingOrders;
+
+  if (customerLoading) {
     return (
       <>
         <PageMeta title="Customer Details | TailAdmin" description="View customer information" />
@@ -260,52 +269,93 @@ export default function CustomerDetail() {
 
             {/* Order History */}
             <ComponentCard title="Recent Orders">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Order</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Date</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Status</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Items</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((order) => (
-                      <tr
-                        key={order.id}
-                        className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                      >
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-2">
-                            <Package className="w-4 h-4 text-gray-400" />
-                            <span className="font-medium text-gray-900 dark:text-white">
-                              {order.orderNumber}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 text-gray-600 dark:text-gray-400">
-                          {formatDate(order.date)}
-                        </td>
-                        <td className="py-4 px-4">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getOrderStatusColor(order.status)}`}
-                          >
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 text-gray-600 dark:text-gray-400">
-                          {order.items} item{order.items !== 1 ? 's' : ''}
-                        </td>
-                        <td className="py-4 px-4 font-medium text-gray-900 dark:text-white">
-                          {formatCurrency(order.total)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {orders.length} order{orders.length !== 1 ? 's' : ''} found
+                </p>
+                <button
+                  onClick={handleRefreshOrders}
+                  disabled={isLoadingOrders}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh Orders"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isLoadingOrders ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
               </div>
+              
+              {isLoadingOrders ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-500 mx-auto mb-3"></div>
+                    <p className="text-gray-600 dark:text-gray-400">Loading orders...</p>
+                  </div>
+                </div>
+              ) : ordersError ? (
+                <div className="text-center py-12">
+                  <Package className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                  <p className="text-gray-600 dark:text-gray-400 mb-2">{ordersError}</p>
+                  <button
+                    onClick={handleRefreshOrders}
+                    className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="text-center py-12">
+                  <Package className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+                  <p className="text-gray-600 dark:text-gray-400">No orders found for this customer</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Order</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Date</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Status</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Items</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-900 dark:text-white">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map((order) => (
+                        <tr
+                          key={order.id}
+                          className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
+                          onClick={() => navigate(`/order/details/${order.id}`)}
+                        >
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-2">
+                              <Package className="w-4 h-4 text-gray-400" />
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {order.orderNumber}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 text-gray-600 dark:text-gray-400">
+                            {formatDate(order.date)}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getOrderStatusColor(order.status)}`}
+                            >
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-gray-600 dark:text-gray-400">
+                            {order.items} item{order.items !== 1 ? 's' : ''}
+                          </td>
+                          <td className="py-4 px-4 font-medium text-gray-900 dark:text-white">
+                            {formatCurrency(order.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </ComponentCard>
           </div>
 

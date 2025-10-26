@@ -95,6 +95,25 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
   }, []);
 
+  // Load customers on mount
+  React.useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        setIsLoading(true);
+        const apiCustomers = await customerApi.getAll();
+        const convertedCustomers = apiCustomers.map(convertApiCustomer);
+        setCustomers(convertedCustomers);
+      } catch (err) {
+        console.error('Error loading customers:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load customers');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadCustomers();
+  }, [convertApiCustomer]);
+
 
   // Customer operations
   const addCustomer = useCallback(async (customerData: CustomerFormData): Promise<Customer> => {
