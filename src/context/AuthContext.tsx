@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import { User, authApi, authUtils } from '../services/auth';
+import { useIdleTimer } from '../hooks/useIdleTimer';
 
 interface AuthContextType {
   user: User | null;
@@ -115,66 +116,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Idle timeout - logout after 15 minutes of inactivity
-  useEffect(() => {
-    if (!user || isLoading) return;
-
-    const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
-    const WARNING_TIME = 1 * 60 * 1000; // 1 minute warning before logout
-
-    let timeoutHandle: ReturnType<typeof setTimeout>;
-    let warningTimeoutHandle: ReturnType<typeof setTimeout>;
-    let lastActivityTime = Date.now();
-
-    const resetIdleTimer = () => {
-      lastActivityTime = Date.now();
-      
-      // Clear existing timers
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      if (warningTimeoutHandle) clearTimeout(warningTimeoutHandle);
-
-      // Set warning timer (1 minute before logout)
-      warningTimeoutHandle = setTimeout(() => {
-        if (Date.now() - lastActivityTime >= IDLE_TIMEOUT - WARNING_TIME) {
-          alert('Your session will expire in 1 minute due to inactivity. Please move your mouse or click anywhere to continue.');
-        }
-      }, IDLE_TIMEOUT - WARNING_TIME);
-
-      // Set logout timer
-      timeoutHandle = setTimeout(() => {
-        const idleTime = Date.now() - lastActivityTime;
-        if (idleTime >= IDLE_TIMEOUT) {
-          console.log('User inactive for 15 minutes, logging out...');
-          authUtils.safeClearAuth('User inactive for 15 minutes');
-          setUser(null);
-          alert('You have been logged out due to inactivity.');
-        }
-      }, IDLE_TIMEOUT);
-    };
-
-    // Activity tracking events
-    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+  const handleIdleTimeout = useCallback(() => {
+    if (!user) return;
     
-    const handleActivity = () => {
-      resetIdleTimer();
-    };
+    console.log('User inactive for 15 minutes, logging out...');
+    authUtils.safeClearAuth('User inactive for 15 minutes');
+    setUser(null);
+    alert('You have been logged out due to inactivity.');
+  }, [user]);
 
-    // Initialize timer
-    resetIdleTimer();
+  const handleWarning = useCallback((timeRemaining: number) => {
+    const minutes = Math.floor(timeRemaining / 60000);
+    const seconds = Math.floor((timeRemaining % 60000) / 1000);
+    alert(`Your session will expire in ${minutes}m ${seconds}s due to inactivity. Please move your mouse or click anywhere to continue.`);
+  }, []);
 
-    // Add event listeners
-    activityEvents.forEach(event => {
-      document.addEventListener(event, handleActivity);
-    });
-
-    // Cleanup
-    return () => {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      if (warningTimeoutHandle) clearTimeout(warningTimeoutHandle);
-      activityEvents.forEach(event => {
-        document.removeEventListener(event, handleActivity);
-      });
-    };
-  }, [user, isLoading]);
+  // Only use idle timer when user is logged in and not loading
+  useIdleTimer({
+    enabled: !!(user && !isLoading),
+    timeout: 15 * 60 * 1000, // 15 minutes
+    onTimeout: handleIdleTimeout,
+    onWarning: handleWarning,
+    warningTime: 1 * 60 * 1000, // 1 minute warning
+    events: ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'],
+  });
 
   // Periodic token validation check - Less aggressive approach
   useEffect(() => {
