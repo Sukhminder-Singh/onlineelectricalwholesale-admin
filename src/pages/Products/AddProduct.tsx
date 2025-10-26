@@ -12,6 +12,7 @@ import { useAttributes } from "../../context/AttributeContext";
 import { productApi, brandApi, type Brand, type ProductCreatePayload, type ProductAttribute, type QuantityLevel, type AdditionalField, type ProductMeta, type ProductParcel } from '../../services/api';
 import { AttributeProvider } from '../../context/AttributeContext';
 import { showSuccessToast, showErrorToast } from "../../components/ui/toast";
+import AddAttributeModal from "../../components/products/AddAttributeModal";
 
 interface GenericField {
     id: string;
@@ -62,6 +63,14 @@ interface TreeNode {
 function AddProduct() {
     const navigate = useNavigate();
     
+    // Attribute modal state
+    const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
+    const [attributeSearchQuery, setAttributeSearchQuery] = useState('');
+    
+    // Category search state
+    const [categorySearchQuery, setCategorySearchQuery] = useState('');
+    const [expandedCategoryKeys, setExpandedCategoryKeys] = useState<Record<string, boolean>>({});
+    
     // SEO Meta fields
     const [metaTitle, setMetaTitle] = useState('');
     const [metaDesc, setMetaDesc] = useState('');
@@ -105,7 +114,7 @@ function AddProduct() {
     
     // Generic fields and attributes
     const [genericFields, setGenericFields] = useState<GenericField[]>([]);
-    const { availableAttributes } = useAttributes();
+    const { availableAttributes, addAttribute, refreshAttributes } = useAttributes();
     const safeAttributes = Array.isArray(availableAttributes) ? availableAttributes : [];
     const [selectedAttributes, setSelectedAttributes] = useState<Set<string>>(new Set());
     const [attributeValues, setAttributeValues] = useState<Record<string, string>>({});
@@ -319,6 +328,57 @@ function AddProduct() {
     const [categoryNodes, setCategoryNodes] = useState<TreeNode[]>([]);
     const [categoryLoading, setCategoryLoading] = useState<boolean>(true);
     const [categoryError, setCategoryError] = useState<string | null>(null);
+    
+    // Function to get keys that need to be expanded to show search results
+    const getKeysToExpand = (nodes: TreeNode[], searchQuery: string, keys: Record<string, boolean> = {}): Record<string, boolean> => {
+        const query = searchQuery.toLowerCase();
+        
+        nodes.forEach(node => {
+            const matchesLabel = node.label.toLowerCase().includes(query);
+            const hasChildren = node.children && node.children.length > 0;
+            
+            if (matchesLabel || hasChildren) {
+                keys[node.key] = true;
+            }
+            
+            if (hasChildren && node.children) {
+                getKeysToExpand(node.children, searchQuery, keys);
+            }
+        });
+        
+        return keys;
+    };
+
+    // Function to filter tree nodes recursively
+    const filterTreeNode = (nodes: TreeNode[], searchQuery: string): TreeNode[] => {
+        const query = searchQuery.toLowerCase();
+        
+        return nodes
+            .map(node => {
+                const matchesLabel = node.label.toLowerCase().includes(query);
+                const filteredChildren = node.children ? filterTreeNode(node.children, searchQuery) : [];
+                
+                // If node matches, include it with all its children
+                if (matchesLabel) {
+                    return {
+                        ...node,
+                        children: node.children
+                    };
+                }
+                
+                // If node doesn't match but has filtered children, include it with only filtered children
+                if (filteredChildren.length > 0) {
+                    return {
+                        ...node,
+                        children: filteredChildren
+                    };
+                }
+                
+                // Node doesn't match and has no matching children
+                return null;
+            })
+            .filter(node => node !== null) as TreeNode[];
+    };
 
     // Load categories
     useEffect(() => {
@@ -787,87 +847,121 @@ function AddProduct() {
                     <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
                         <div className="mb-4 flex items-center justify-between">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Product Attributes</h3>
-                            <div className="text-sm text-gray-500">
-                                {selectedAttributes.size} of {availableAttributes.length} attributes selected
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setIsAttributeModalOpen(true)}
+                                    className="flex items-center gap-2 rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600"
+                                    title="Add New Attribute"
+                                >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    Add Attribute
+                                </button>
+                                <div className="text-sm text-gray-500">
+                                    {selectedAttributes.size} of {availableAttributes.length} attributes selected
+                                </div>
                             </div>
                         </div>
                         
-                        {/* Attribute Selection */}
+                        {/* Attribute Selection - Compact List */}
                         <div className="mb-6">
-                            <Label className="mb-4 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Select Attributes for this Product
-                            </Label>
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                {safeAttributes.map((attribute) => {
+                            <div className="mb-3 flex items-center justify-between">
+                                <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Select Attributes
+                                </Label>
+                                {selectedAttributes.size > 0 && (
+                                    <span className="text-xs text-gray-500">
+                                        {selectedAttributes.size} selected
+                                    </span>
+                                )}
+                            </div>
+                            
+                            {/* Search Input */}
+                            <div className="mb-3">
+                                <div className="relative">
+                                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                        <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                        </svg>
+                                    </div>
+                                    <Input
+                                        type="text"
+                                        value={attributeSearchQuery}
+                                        onChange={(e) => setAttributeSearchQuery(e.target.value)}
+                                        placeholder="Search attributes..."
+                                        className="pl-10"
+                                    />
+                                    {attributeSearchQuery && (
+                                        <button
+                                            onClick={() => setAttributeSearchQuery('')}
+                                            className="absolute inset-y-0 right-0 flex items-center pr-3"
+                                        >
+                                            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div className="divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden dark:divide-gray-700 dark:border-gray-600 max-h-[400px] overflow-y-auto">
+                                {safeAttributes
+                                .filter(attribute => 
+                                    attribute.name.toLowerCase().includes(attributeSearchQuery.toLowerCase()) ||
+                                    attribute.type.toLowerCase().includes(attributeSearchQuery.toLowerCase())
+                                )
+                                .map((attribute) => {
                                     const isSelected = selectedAttributes.has(attribute._id);
                                     return (
                                         <div 
                                             key={attribute._id} 
-                                            className={`relative cursor-pointer rounded-lg border-2 p-4 transition-all duration-200 hover:shadow-md ${
+                                            className={`cursor-pointer px-4 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
                                                 isSelected 
-                                                    ? 'border-brand-500 bg-brand-50 dark:border-brand-400 dark:bg-brand-900/20' 
-                                                    : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500'
+                                                    ? 'bg-brand-50 dark:bg-brand-900/20' 
+                                                    : 'bg-white dark:bg-gray-800'
                                             }`}
                                             onClick={() => toggleAttribute(attribute._id)}
                                         >
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`flex h-5 w-5 items-center justify-center rounded-md border-2 transition-all duration-200 ${
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3 flex-1">
+                                                    <div className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
                                                         isSelected 
                                                             ? 'border-brand-500 bg-brand-500' 
                                                             : 'border-gray-300 dark:border-gray-500'
                                                     }`}>
                                                         {isSelected && (
-                                                            <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                            <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                             </svg>
                                                         )}
                                                     </div>
-                                                    <div>
-                                                        <h4 className={`font-medium transition-colors duration-200 ${
-                                                            isSelected 
-                                                                ? 'text-brand-700 dark:text-brand-300' 
-                                                                : 'text-gray-900 dark:text-gray-100'
-                                                        }`}>
-                                                            {attribute.name}
-                                                        </h4>
-                                                        <p className={`text-xs transition-colors duration-200 ${
-                                                            isSelected 
-                                                                ? 'text-brand-600 dark:text-brand-400' 
-                                                                : 'text-gray-500 dark:text-gray-400'
-                                                        }`}>
-                                                            {attribute.name === 'Dimensions' ? 'dimensions (W×H×L)' : attribute.type} {attribute.type === 'select' && attribute.options && `(${attribute.options.length} options)`}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                                <div className={`flex h-6 w-6 items-center justify-center rounded-full transition-all duration-200 ${
-                                                    isSelected 
-                                                        ? 'bg-brand-100 dark:bg-brand-900/40' 
-                                                        : 'bg-gray-100 dark:bg-gray-700'
-                                                }`}>
-                                                    {attribute.name === 'Dimensions' ? (
-                                                        <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                                                        </svg>
-                                                    ) : attribute.type === 'select' ? (
-                                                        <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                        </svg>
-                                                    ) : attribute.type === 'number' ? (
-                                                        <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
-                                                        </svg>
-                                                    ) : (
-                                                        <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                                                        </svg>
-                                                    )}
+                                                    <span className={`text-sm font-medium ${
+                                                        isSelected 
+                                                            ? 'text-brand-700 dark:text-brand-300' 
+                                                            : 'text-gray-900 dark:text-gray-100'
+                                                    }`}>
+                                                        {attribute.name}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {attribute.type}
+                                                        {attribute.type === 'select' && attribute.options && ` • ${attribute.options.length} options`}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
                                     );
                                 })}
                             </div>
+                            
+                            {safeAttributes.filter(attribute => 
+                                attribute.name.toLowerCase().includes(attributeSearchQuery.toLowerCase()) ||
+                                attribute.type.toLowerCase().includes(attributeSearchQuery.toLowerCase())
+                            ).length === 0 && (
+                                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    No attributes found matching "{attributeSearchQuery}"
+                                </div>
+                            )}
                         </div>
 
                         {/* Selected Attribute Fields */}
@@ -1283,30 +1377,90 @@ function AddProduct() {
                         ) : categoryNodes.length === 0 ? (
                             <div className="text-gray-500">No categories found.</div>
                         ) : (
-                            <Tree 
-                                value={categoryNodes} 
-                                className="w-full"
-                                selectionMode="checkbox" 
-                                selectionKeys={selectedKeys}
-                                onSelectionChange={(e) => {
-                                    const keys = e.value as TreeCheckboxSelectionKeys;
-                                    setSelectedKeys(keys);
-                                    
-                                    // Extract selected category IDs from the tree selection
-                                    const selectedCategoryIds = keys && typeof keys === 'object' 
-                                        ? Object.keys(keys)
-                                              .filter(key => keys[key as keyof typeof keys])
-                                        : [];
-                                        
-                                    // Update the form data with the selected category IDs
-                                    updateFormField('categories', selectedCategoryIds);
-                                }}
-                                filterPlaceholder="Search categories" 
-                            />
+                            <>
+                                {/* Category Search Input */}
+                                <div className="mb-4">
+                                    <div className="relative">
+                                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                            </svg>
+                                        </div>
+                                        <Input
+                                            type="text"
+                                            value={categorySearchQuery}
+                                            onChange={(e) => {
+                                                setCategorySearchQuery(e.target.value);
+                                                // Auto-expand when searching
+                                                if (e.target.value) {
+                                                    const keysToExpand = getKeysToExpand(categoryNodes, e.target.value);
+                                                    setExpandedCategoryKeys(keysToExpand);
+                                                } else {
+                                                    setExpandedCategoryKeys({});
+                                                }
+                                            }}
+                                            placeholder="Search categories..."
+                                            className="pl-10"
+                                        />
+                                        {categorySearchQuery && (
+                                            <button
+                                                onClick={() => {
+                                                    setCategorySearchQuery('');
+                                                    setExpandedCategoryKeys({});
+                                                }}
+                                                className="absolute inset-y-0 right-0 flex items-center pr-3"
+                                            >
+                                                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="max-h-[600px] overflow-y-auto">
+                                    <Tree 
+                                        value={categorySearchQuery 
+                                            ? filterTreeNode(categoryNodes, categorySearchQuery) 
+                                            : categoryNodes
+                                        } 
+                                        className="w-full"
+                                        selectionMode="checkbox" 
+                                        selectionKeys={selectedKeys}
+                                        expandedKeys={expandedCategoryKeys}
+                                        onToggle={(e) => {
+                                            setExpandedCategoryKeys(e.value || {});
+                                        }}
+                                        onSelectionChange={(e) => {
+                                            const keys = e.value as TreeCheckboxSelectionKeys;
+                                            setSelectedKeys(keys);
+                                            
+                                            // Extract selected category IDs from the tree selection
+                                            const selectedCategoryIds = keys && typeof keys === 'object' 
+                                                ? Object.keys(keys)
+                                                      .filter(key => keys[key as keyof typeof keys])
+                                                : [];
+                                                
+                                            // Update the form data with the selected category IDs
+                                            updateFormField('categories', selectedCategoryIds);
+                                        }}
+                                    />
+                                </div>
+                            </>
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* Add Attribute Modal */}
+            <AddAttributeModal
+                isOpen={isAttributeModalOpen}
+                onClose={() => setIsAttributeModalOpen(false)}
+                onAdd={async (attribute) => {
+                    await addAttribute(attribute);
+                    await refreshAttributes();
+                }}
+            />
         </>
     )
 }
