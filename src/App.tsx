@@ -24,6 +24,7 @@ import { ProductDetailsWrapper } from "./pages/Products/ProductDetails";
 import AttributeManagementPage from "./pages/Products/Attributes/AttributeManagementPage";
 import AddBrand from "./pages/Brands/AddBrand";
 import AddCategory from "./pages/Categories/AddCategory";
+import EditCategory from "./pages/Categories/EditCategory";
 import CategoryList from "./pages/Categories/CategoryList";
 import CategoryOrder from "./pages/Categories/CategoryOrder";
 import StateList from "./pages/Locations/StateList";
@@ -112,6 +113,7 @@ function AppRoutes() {
 
           {/* Categories Routes */}
           <Route path="/category/add" element={<AddCategory />} />
+          <Route path="/category/edit/:id" element={<EditCategory />} />
           <Route path="/category/list" element={<CategoryList />} />
           <Route path="/category/order" element={<CategoryOrder />} />
           

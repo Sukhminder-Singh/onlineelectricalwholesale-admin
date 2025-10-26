@@ -370,6 +370,12 @@ export default function ProductDetails() {
                         
                         // Get the proper attribute name
                         const getAttributeName = () => {
+                          // First try to use the name from the API
+                          if (attr.name) {
+                            return attr.name;
+                          }
+                          
+                          // Fallback to looking up from available attributes
                           if (attributeDef) {
                             return attributeDef.name;
                           }
@@ -380,8 +386,7 @@ export default function ProductDetails() {
                           }
                           
                           if (typeof attr === 'object' && attr !== null) {
-                            return attr.name || 
-                                   attr.attributeName || 
+                            return attr.attributeName || 
                                    attr.label || 
                                    attr.title || 
                                    attr.displayName ||

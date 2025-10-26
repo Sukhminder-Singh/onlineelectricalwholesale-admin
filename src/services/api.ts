@@ -159,6 +159,26 @@ export const categoryApi = {
         return response.data;
     },
 
+    // Update category with FormData (for file uploads)
+    updateWithFormData: async (id: string, formData: FormData): Promise<Category> => {
+        const token = localStorage.getItem('authToken');
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+        
+        const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+            method: 'PUT',
+            headers,
+            body: formData,
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        return result.data;
+    },
+
     // Delete category
     delete: async (id: string): Promise<ApiResponse> => {
         return apiRequest<ApiResponse>(`/categories/${id}`, {
@@ -201,6 +221,7 @@ export interface ProductDimensions {
 
 export interface ProductAttribute {
     id: string;
+    name?: string; // Attribute name for display purposes
     value: string;
 }
 

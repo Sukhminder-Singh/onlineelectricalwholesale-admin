@@ -518,10 +518,14 @@ export default function EditProduct() {
         
         try {
             // Build attributes array
-            const attributes: ProductAttribute[] = Array.from(selectedAttributes).map(id => ({
-                id,
-                value: attributeValues[id] || ''
-            }));
+            const attributes: ProductAttribute[] = Array.from(selectedAttributes).map(id => {
+                const attributeDef = safeAttributes.find(attr => attr._id === id);
+                return {
+                    id,
+                    name: attributeDef?.name || '', // Include attribute name
+                    value: attributeValues[id] || ''
+                };
+            });
             
             // Build quantity levels array
             const quantityLevelsPayload: QuantityLevel[] = quantityLevels.map(lvl => ({

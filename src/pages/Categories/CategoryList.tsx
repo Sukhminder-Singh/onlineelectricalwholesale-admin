@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import Switch from "../../components/form/switch/Switch";
 import ComponentCard from "../../components/common/ComponentCard";
@@ -6,8 +6,8 @@ import Button from "../../components/ui/button/Button";
 import { useCategories } from "../../context/CategoryContext";
 import { CategoryNode } from "../../services/api";
 import { LoadingSpinner } from "../../components/ui/loading";
-import { Search, Eye, EyeOff, AlertTriangle, ChevronDown, ChevronRight, Trash2 } from "lucide-react";
-import { createImageUrl } from "../../utils/imageUtils";
+import { Search, Eye, EyeOff, AlertTriangle, ChevronDown, ChevronRight, Trash2, Edit } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export type CategoryNodeType = CategoryNode;
 
@@ -259,6 +259,15 @@ export default function CategoryList() {
                 {/* Actions */}
                 <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
+                        {/* Edit Button */}
+                        <Link
+                            to={`/category/edit/${category.key}`}
+                            className="p-2 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors duration-200 group"
+                            title={`Edit ${category.label}`}
+                        >
+                            <Edit className="w-4 h-4" />
+                        </Link>
+                        
                         {/* Toggle Switch */}
                         <Switch
                             label=""

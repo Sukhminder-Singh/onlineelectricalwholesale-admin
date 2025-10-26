@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { categoryApi, Category, CategoryNode } from '../services/api';
 import { showSuccessToast, showErrorToast } from '../components/ui/toast';
 
@@ -9,7 +9,7 @@ interface CategoryContextType {
   error: string | null;
   refreshCategories: () => Promise<void>;
   createCategory: (categoryData: Omit<Category, 'id' | 'createdAt' | 'updatedAt'> & { image?: string | File }) => Promise<Category | null>;
-  updateCategory: (id: string, categoryData: Partial<Category>) => Promise<Category | null>;
+  updateCategory: (id: string, categoryData: Partial<Category> & { image?: string | File }) => Promise<Category | null>;
   deleteCategory: (id: string) => Promise<boolean>;
   toggleCategoryStatus: (id: string, isActive: boolean) => Promise<boolean>;
   updateCategoryOrder: (orderData: { categories: Array<{ id: string; order: number }> }) => Promise<boolean>;
@@ -235,12 +235,40 @@ export const CategoryProvider: React.FC<CategoryProviderProps> = ({ children }) 
     }
   };
 
-  const updateCategory = async (id: string, categoryData: Partial<Category>): Promise<Category | null> => {
+  const updateCategory = async (id: string, categoryData: Partial<Category> & { image?: string | File }): Promise<Category | null> => {
     try {
-      const updatedCategory = await categoryApi.update(id, categoryData);
-      await refreshCategories(true);
-      showSuccessToast('Success', 'Category updated successfully');
-      return updatedCategory;
+      // Check if image is a File object (similar to createCategory approach)
+      if (categoryData.image && typeof categoryData.image !== 'string') {
+        // Handle File upload for categories
+        const formData = new FormData();
+        formData.append('name', categoryData.name || '');
+        formData.append('description', categoryData.description || '');
+        if (categoryData.parent) {
+          formData.append('parent', categoryData.parent as string);
+        }
+        // Check if image is a File object using a more reliable method
+        if (categoryData.image && (categoryData.image as any) instanceof File) {
+          formData.append('image', categoryData.image as any);
+        }
+        if (categoryData.isActive !== undefined) {
+          formData.append('isActive', categoryData.isActive.toString());
+        }
+        if (categoryData.order !== undefined) {
+          formData.append('order', categoryData.order.toString());
+        }
+        
+        // Use the categoryApi.updateWithFormData method that handles FormData
+        const updatedCategory = await categoryApi.updateWithFormData(id, formData);
+        await refreshCategories(true);
+        showSuccessToast('Success', 'Category updated successfully');
+        return updatedCategory;
+      } else {
+        // Regular update for string URLs
+        const updatedCategory = await categoryApi.update(id, categoryData);
+        await refreshCategories(true);
+        showSuccessToast('Success', 'Category updated successfully');
+        return updatedCategory;
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update category';
       showErrorToast('Error', errorMessage);

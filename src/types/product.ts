@@ -8,6 +8,7 @@ export interface ProductDimensions {
 
 export interface ProductAttribute {
   id: string;
+  name?: string; // Attribute name for display purposes
   value: string;
 }
 
