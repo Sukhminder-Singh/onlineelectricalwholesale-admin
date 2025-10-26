@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, Edit, Trash2, Search, Plus, Users, ShoppingBag, Calendar, Mail, Phone, MapPin } from 'lucide-react';
 import PageBreadcrumb from '../../components/common/PageBreadCrumb';
@@ -218,7 +218,7 @@ export default function CustomerList() {
                       </td>
                       <td className="py-4 px-4">
                         <span className="text-gray-900 dark:text-white font-medium">
-                          {customer.totalOrders}
+                          {typeof customer.totalOrders === 'number' ? customer.totalOrders : 0}
                         </span>
                         {customer.lastOrderDate && (
                           <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -228,18 +228,18 @@ export default function CustomerList() {
                       </td>
                       <td className="py-4 px-4">
                         <span className="text-gray-900 dark:text-white font-medium">
-                          {formatCurrency(customer.totalSpent)}
+                          {formatCurrency(typeof customer.totalSpent === 'number' ? customer.totalSpent : 0)}
                         </span>
                       </td>
                       <td className="py-4 px-4">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            customer.status === 'active'
+                            (customer.isActive === true || customer.status === 'active') 
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
                               : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
                           }`}
                         >
-                          {customer.status}
+                          {customer.isActive === true ? 'Active' : customer.isActive === false ? 'Inactive' : (customer.status || 'Inactive')}
                         </span>
                       </td>
                       <td className="py-4 px-4">

@@ -15,7 +15,8 @@ export interface Customer {
   totalOrders: number;
   totalSpent: number;
   lastOrderDate?: string;
-  status: 'active' | 'inactive';
+  status?: 'active' | 'inactive';
+  isActive?: boolean;
   createdAt: string;
   notes?: string;
 }
@@ -30,7 +31,8 @@ export interface CustomerFormData {
   state?: string;
   postalCode?: string;
   country?: string;
-  status: 'active' | 'inactive';
+  status?: 'active' | 'inactive';
+  isActive?: boolean;
   notes?: string;
 }
 
@@ -75,6 +77,16 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // Helper function to convert API customer to local customer format
   const convertApiCustomer = useCallback((apiCustomer: ApiCustomer): Customer => {
+    // Safely convert totalOrders to number
+    const totalOrders = typeof apiCustomer.totalOrders === 'number' 
+      ? apiCustomer.totalOrders 
+      : (typeof apiCustomer.totalOrders === 'string' ? parseInt(apiCustomer.totalOrders, 10) || 0 : 0);
+    
+    // Safely convert totalSpent to number
+    const totalSpent = typeof apiCustomer.totalSpent === 'number' 
+      ? apiCustomer.totalSpent 
+      : (typeof apiCustomer.totalSpent === 'string' ? parseFloat(apiCustomer.totalSpent) || 0 : 0);
+    
     return {
       id: apiCustomer.id || apiCustomer._id || '',
       firstName: apiCustomer.firstName,
@@ -86,10 +98,11 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
       state: apiCustomer.state,
       postalCode: apiCustomer.postalCode,
       country: apiCustomer.country,
-      totalOrders: apiCustomer.totalOrders,
-      totalSpent: apiCustomer.totalSpent,
+      totalOrders,
+      totalSpent,
       lastOrderDate: apiCustomer.lastOrderDate,
       status: apiCustomer.status,
+      isActive: apiCustomer.isActive,
       createdAt: apiCustomer.createdAt,
       notes: apiCustomer.notes,
     };
@@ -253,7 +266,15 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     const matchesSearch = `${customer.firstName} ${customer.lastName} ${customer.email}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
+    
+    // Check both isActive and status for compatibility
+    const isCustomerActive = customer.isActive === true || customer.status === 'active';
+    const isCustomerInactive = customer.isActive === false || customer.status === 'inactive';
+    
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'active' && isCustomerActive) ||
+      (statusFilter === 'inactive' && isCustomerInactive);
+    
     return matchesSearch && matchesStatus;
   });
 
@@ -263,15 +284,21 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [customers]);
 
   const getActiveCustomers = useCallback((): number => {
-    return customers.filter(c => c.status === 'active').length;
+    return customers.filter(c => c.isActive === true || c.status === 'active').length;
   }, [customers]);
 
   const getTotalOrders = useCallback((): number => {
-    return customers.reduce((sum, c) => sum + c.totalOrders, 0);
+    return customers.reduce((sum, c) => {
+      const orders = typeof c.totalOrders === 'number' ? c.totalOrders : 0;
+      return sum + orders;
+    }, 0);
   }, [customers]);
 
   const getTotalRevenue = useCallback((): number => {
-    return customers.reduce((sum, c) => sum + c.totalSpent, 0);
+    return customers.reduce((sum, c) => {
+      const spent = typeof c.totalSpent === 'number' ? c.totalSpent : 0;
+      return sum + spent;
+    }, 0);
   }, [customers]);
 
   const value: CustomerContextType = {

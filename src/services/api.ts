@@ -653,7 +653,8 @@ export interface Customer {
     totalOrders: number;
     totalSpent: number;
     lastOrderDate?: string;
-    status: 'active' | 'inactive';
+    status?: 'active' | 'inactive';
+    isActive?: boolean;
     createdAt: string;
     updatedAt?: string;
     notes?: string;
@@ -669,7 +670,8 @@ export interface CustomerFormData {
     state?: string;
     postalCode?: string;
     country?: string;
-    status: 'active' | 'inactive';
+    status?: 'active' | 'inactive';
+    isActive?: boolean;
     notes?: string;
 }
 
